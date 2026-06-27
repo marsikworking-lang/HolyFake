@@ -506,3 +506,36 @@ button:disabled, .button:disabled { opacity: .55; cursor: not-allowed; transform
 .permission-reset-form { margin-top: 10px; }
 @media (max-width: 1180px) { .permission-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .permission-grid { grid-template-columns: 1fr; } }
+
+/* Цвета должностей как в таблице КП */
+.position-pill {
+  min-width: 112px;
+  border-width: 1px;
+  color: #111 !important;
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,.12);
+}
+.position-pill.pos-admin { background: #bd0000; color: #fff !important; border-color: #8f0000; }
+.position-pill.pos-senior { background: #bd0000; color: #fff !important; border-color: #8f0000; }
+.position-pill.pos-spectator { background: #ffc8c8; color: #b30000 !important; border-color: #ff9e9e; }
+.position-pill.pos-lead { background: #ffc4a5; color: #a33200 !important; border-color: #ffa575; }
+.position-pill.pos-staff { background: #ffd2aa; color: #8b4400 !important; border-color: #ffb370; }
+.position-pill.pos-junior { background: #ffe88f; color: #6a4d00 !important; border-color: #f7cf45; }
+.position-pill.pos-trainee { background: #bfe4ff; color: #0065a8 !important; border-color: #8fcfff; }
+.position-pill.pos-empty { background: rgba(255,255,255,.08); color: var(--muted) !important; border-color: var(--line-soft); }
+
+.employee-position-select.pos-admin,
+.employee-position-select.pos-senior { background: #bd0000; color: #fff; border-color: #8f0000; }
+.employee-position-select.pos-spectator { background: #ffc8c8; color: #b30000; border-color: #ff9e9e; }
+.employee-position-select.pos-lead { background: #ffc4a5; color: #a33200; border-color: #ffa575; }
+.employee-position-select.pos-staff { background: #ffd2aa; color: #8b4400; border-color: #ffb370; }
+.employee-position-select.pos-junior { background: #ffe88f; color: #6a4d00; border-color: #f7cf45; }
+.employee-position-select.pos-trainee { background: #bfe4ff; color: #0065a8; border-color: #8fcfff; }
+.employee-position-select.pos-empty { background: rgba(255,255,255,.055); color: var(--text); }
+select option.pos-admin,
+select option.pos-senior { background: #bd0000; color: #fff; }
+select option.pos-spectator { background: #ffc8c8; color: #b30000; }
+select option.pos-lead { background: #ffc4a5; color: #a33200; }
+select option.pos-staff { background: #ffd2aa; color: #8b4400; }
+select option.pos-junior { background: #ffe88f; color: #6a4d00; }
+select option.pos-trainee { background: #bfe4ff; color: #0065a8; }
+.actions-cell .inline-form { display: inline-flex; }

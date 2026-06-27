@@ -7,7 +7,7 @@
       <div class="big-avatar">{{ employee.nick[0]|upper }}</div>
       <div>
         <h2>{{ employee.nick }}</h2>
-        <p>{{ employee.position }} · <span class="badge {{ badge_class(employee.status) }}">{{ employee.status }}</span></p>
+        <p><span class="pill position-pill {{ position_css_class(employee.position) }}">{{ employee.position or '-' }}</span> · <span class="badge {{ badge_class(employee.status) }}">{{ employee.status }}</span></p>
       </div>
     </div>
     {% if matches %}
@@ -28,6 +28,7 @@
     <div class="hero-actions">
       {% if can_perm('manage_chskp') %}<button class="button danger" data-open-modal="profileChskpModal">Внести в ЧСКП</button>{% endif %}
       {% if can_perm('manage_chsp') %}<button class="button danger" data-open-modal="profileChspModal">Внести в ЧСП</button>{% endif %}
+      {% if can_perm('manage_employees') %}<form method="post" action="/employees/{{ employee.id }}/delete" class="inline-form" data-confirm="Удалить сотрудника {{ employee.nick }} навсегда? Это НЕ попадет в журнал действий."><button class="button danger" type="submit">Удалить</button></form>{% endif %}
       <a class="button ghost" href="/employees">Назад к таблице</a>
     </div>
   </article>
@@ -74,7 +75,7 @@
     <h2>Внести {{ employee.nick }} в ЧСКП</h2>
     <form method="post" action="/employees/{{ employee.id }}/chskp" class="form-grid one" data-confirm="Вы точно хотите внести сотрудника в ЧСКП?">
       <label>Кто внес
-        <select class="input" name="added_by" required>{% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}</select>
+        <select class="input" name="added_by" required><option value="">-</option>{% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}</select>
       </label>
       <label>Дата внесения<input class="input" type="date" name="added_date" value="{{ today().isoformat() }}"></label>
       <label>Срок
@@ -97,7 +98,7 @@
     <h2>Внести {{ employee.nick }} в ЧСП</h2>
     <form method="post" action="/employees/{{ employee.id }}/chsp" class="form-grid one" data-confirm="Вы точно хотите внести сотрудника в ЧСП?">
       <label>Кто внес
-        <select class="input" name="added_by" required>{% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}</select>
+        <select class="input" name="added_by" required><option value="">-</option>{% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}</select>
       </label>
       <label>Дата внесения<input class="input" type="date" name="added_date" value="{{ today().isoformat() }}"></label>
       <label>Срок

@@ -1,7 +1,8 @@
 <label>Ник<input class="input" name="nick" required placeholder="NickName"></label>
 <label>Должность
   <select class="input employee-position-select" name="position" required>
-    {% for position in options.positions %}<option value="{{ position }}">{{ position }}</option>{% endfor %}
+    <option value="-">-</option>
+    {% for position in options.positions %}<option value="{{ position }}" class="{{ position_css_class(position) }}">{{ position }}</option>{% endfor %}
   </select>
 </label>
 <label>Дискорд<input class="input" name="discord" placeholder="discord_name"></label>
@@ -23,6 +24,7 @@
 </label>
 <label>Кто принял
   <select class="input" name="accepted_by">
+    <option value="">-</option>
     {% for user in options.accepted_by %}<option value="{{ user }}">{{ user }}</option>{% endfor %}
   </select>
 </label>

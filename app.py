@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from openpyxl import Workbook, load_workbook
-from sqlalchemy import extract, func, or_
+from sqlalchemy import extract, func, or_, text
 from sqlalchemy.orm import Session, joinedload
 
 from database import Base, DB_PATH, IS_SQLITE, SessionLocal, engine, get_db
@@ -141,6 +141,37 @@ POSITION_RANK = {
     "Спектатор": 6,
     "Админ": 7,
 }
+POSITION_ORDER = {
+    "Админ": 0,
+    "Ст.сотрудник": 1,
+    "Спектатор": 2,
+    "Вед.сотрудник": 3,
+    "Сотрудник": 4,
+    "Мл.сотрудник": 5,
+    "Стажер": 6,
+    "-": 99,
+    "": 99,
+}
+POSITION_CSS = {
+    "Админ": "pos-admin",
+    "Ст.сотрудник": "pos-senior",
+    "Спектатор": "pos-spectator",
+    "Вед.сотрудник": "pos-lead",
+    "Сотрудник": "pos-staff",
+    "Мл.сотрудник": "pos-junior",
+    "Стажер": "pos-trainee",
+    "-": "pos-empty",
+    "": "pos-empty",
+}
+
+
+def position_sort_key(employee: Employee):
+    return (POSITION_ORDER.get(employee.position or "", 90), (employee.nick or "").lower())
+
+
+def position_css_class(position: str) -> str:
+    return POSITION_CSS.get(position or "", "pos-empty")
+
 ATTESTATION_TARGETS = {
     "Стажер": ["Мл.сотрудник"],
     "Мл.сотрудник": ["Сотрудник"],
@@ -436,6 +467,7 @@ templates.env.globals["due_class"] = due_class
 templates.env.globals["today"] = date.today
 templates.env.globals["chskp_status"] = chskp_status
 templates.env.globals["blacklist_status"] = blacklist_status
+templates.env.globals["position_css_class"] = position_css_class
 templates.env.globals["yesno"] = yesno
 templates.env.globals["manual_due"] = manual_due
 templates.env.globals["manual_levels"] = MANUAL_LEVELS
@@ -1143,7 +1175,8 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 def employees_page(request: Request, db: Session = Depends(get_db)):
     require_permission(request, "view_employees")
     maintenance_update(db)
-    employees = db.query(Employee).filter(Employee.is_archived.is_(False)).order_by(Employee.created_at.desc()).all()
+    employees = db.query(Employee).filter(Employee.is_archived.is_(False)).all()
+    employees = sorted(employees, key=position_sort_key)
     counts = employee_counts(db)
     matches = {e.id: find_blacklist_matches(db, e.nick, e.discord, e.discord_id, e.telegram, e.telegram_id, e.email) for e in employees}
     return render(request, "employees.html", {"page": "employees", "employees": employees, "counts": counts, "options": all_options(db), "chskp_matches": matches})
@@ -1291,15 +1324,146 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     return render(request, "settings.html", {"page": "settings", "options_by_category": options_by_category, "settings": settings, "users": users, "roles": ROLE_LABELS, "permission_groups": PERMISSION_GROUPS, "user_permissions_list": editable_user_permissions})
 
 
+
+# -------------------------- portable JSON backups --------------------------
+BACKUP_MODELS = [
+    User,
+    SettingOption,
+    AppSetting,
+    Employee,
+    Punishment,
+    Vacation,
+    Promotion,
+    BlacklistEntry,
+    Attestation,
+    AttestationHistory,
+    Interview,
+    ActionHistory,
+]
+BACKUP_MODEL_BY_TABLE = {model.__tablename__: model for model in BACKUP_MODELS}
+BACKUP_INSERT_ORDER = BACKUP_MODELS
+BACKUP_DELETE_ORDER = list(reversed(BACKUP_MODELS))
+
+
+def serialize_backup_value(value):
+    if isinstance(value, (datetime, date, time)):
+        return value.isoformat()
+    return value
+
+
+def parse_backup_value(column, value):
+    if value in (None, ""):
+        return None if column.nullable else value
+    try:
+        py_type = column.type.python_type
+    except NotImplementedError:
+        return value
+    if py_type is datetime and isinstance(value, str):
+        return datetime.fromisoformat(value)
+    if py_type is date and isinstance(value, str):
+        return date.fromisoformat(value)
+    if py_type is time and isinstance(value, str):
+        return time.fromisoformat(value)
+    if py_type is bool:
+        return parse_bool_value(str(value), default=bool(value))
+    if py_type is int and value != "":
+        return int(value)
+    return value
+
+
+def model_rows_for_backup(db: Session) -> dict:
+    data = {}
+    for model in BACKUP_MODELS:
+        table = model.__tablename__
+        rows = []
+        for obj in db.query(model).all():
+            row = {}
+            for column in model.__table__.columns:
+                row[column.name] = serialize_backup_value(getattr(obj, column.name))
+            rows.append(row)
+        data[table] = rows
+    return data
+
+
+def write_json_backup(db: Session, target: Path) -> None:
+    payload = {
+        "format": "holyfake-json-backup",
+        "version": 2,
+        "created_at": datetime.now().isoformat(),
+        "tables": model_rows_for_backup(db),
+    }
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def read_json_backup(path: Path) -> dict:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("format") != "holyfake-json-backup" or "tables" not in payload:
+        raise ValueError("Это не резервная копия HolyFake JSON")
+    return payload["tables"]
+
+
+def read_sqlite_backup(path: Path) -> dict:
+    result = {}
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    try:
+        integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+        if integrity != "ok":
+            raise ValueError("SQLite-файл поврежден")
+        existing_tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        for table, model in BACKUP_MODEL_BY_TABLE.items():
+            if table not in existing_tables:
+                result[table] = []
+                continue
+            rows = []
+            for row in conn.execute(f'SELECT * FROM "{table}"').fetchall():
+                rows.append({k: row[k] for k in row.keys()})
+            result[table] = rows
+    finally:
+        conn.close()
+    return result
+
+
+def restore_tables_from_backup(db: Session, tables: dict) -> None:
+    # Полное восстановление: текущие данные заменяются данными из резервной копии.
+    for model in BACKUP_DELETE_ORDER:
+        db.query(model).delete(synchronize_session=False)
+    db.flush()
+
+    for model in BACKUP_INSERT_ORDER:
+        table_rows = tables.get(model.__tablename__, [])
+        if not table_rows:
+            continue
+        columns = {column.name: column for column in model.__table__.columns}
+        prepared = []
+        for source_row in table_rows:
+            row = {}
+            for name, column in columns.items():
+                if name in source_row:
+                    row[name] = parse_backup_value(column, source_row[name])
+            prepared.append(row)
+        if prepared:
+            db.execute(model.__table__.insert(), prepared)
+    db.flush()
+
+    # Для PostgreSQL после ручной вставки id нужно обновить sequence, иначе новые записи могут конфликтовать.
+    if not IS_SQLITE:
+        for model in BACKUP_INSERT_ORDER:
+            table = model.__tablename__
+            if "id" not in model.__table__.columns:
+                continue
+            db.execute(text(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), COALESCE((SELECT MAX(id) FROM {table}), 1), (SELECT COUNT(*) FROM {table}) > 0)"))
+
 @app.get("/backups")
 def backups_page(request: Request):
     require_permission(request, "view_backups")
-    files = sorted(BACKUP_DIR.glob("*.sqlite3"), key=lambda p: p.stat().st_mtime, reverse=True)
+    files = sorted([*BACKUP_DIR.glob("*.json"), *BACKUP_DIR.glob("*.sqlite3")], key=lambda p: p.stat().st_mtime, reverse=True)
     backups = [
         {
             "name": f.name,
             "size_kb": round(f.stat().st_size / 1024, 1),
             "created": datetime.fromtimestamp(f.stat().st_mtime).strftime("%d.%m.%Y %H:%M"),
+            "type": "JSON" if f.suffix.lower() == ".json" else "SQLite",
         }
         for f in files
     ]
@@ -1347,8 +1511,8 @@ def add_employee(
         accepted_date=parse_date(accepted_date, date.today()),
         status=status,
         two_fa_enabled=parse_bool_value(two_fa_enabled),
-        manual_access=parse_bool_value(manual_access, default=(position != "Стажер")),
-        manual_access_granted_date=date.today() if parse_bool_value(manual_access, default=(position != "Стажер")) else None,
+        manual_access=parse_bool_value(manual_access, default=(position not in {"Стажер", "-", ""})),
+        manual_access_granted_date=date.today() if parse_bool_value(manual_access, default=(position not in {"Стажер", "-", ""})) else None,
     )
     db.add(employee)
     db.flush()
@@ -1440,6 +1604,18 @@ def archive_employee(
         linked_user.status = "blocked"
         linked_user.updated_at = datetime.now()
         add_history(db, employee.id, "Автоблокировка доступа", f"Пользователь сайта {linked_user.username} заблокирован после снятия сотрудника", "Система")
+    db.commit()
+    return redirect_to("/employees")
+
+
+@app.post("/employees/{employee_id}/delete")
+def delete_employee_permanent(employee_id: int, request: Request, db: Session = Depends(get_db)):
+    require_permission(request, "manage_employees")
+    employee = db.get(Employee, employee_id)
+    if not employee:
+        raise HTTPException(404, "Сотрудник не найден")
+    # Удаление намеренно НЕ записывается в журнал действий по требованию владельца панели.
+    db.delete(employee)
     db.commit()
     return redirect_to("/employees")
 
@@ -2172,7 +2348,7 @@ def import_employee_rows(db: Session, rows: list[dict], actor: str) -> dict[str,
         two_fa_raw = row_value(row, "2fa", "2 fa", "2ФА", "привязка аккаунта", "привязка акка", "привязка")
         manual_raw = row_value(row, "доступ к мануалу", "доступ к мануалу на млку", "мануал", "manual access")
         two_fa = parse_bool_from_sheet(two_fa_raw, False)
-        manual_default = position != "Стажер"
+        manual_default = position not in {"Стажер", "-", ""}
         manual_access_value = parse_bool_from_sheet(manual_raw, manual_default)
         matches = find_blacklist_matches(db, nick, discord, discord_id, telegram, telegram_id, email)
         if matches:
@@ -2259,11 +2435,11 @@ async def import_table_file(request: Request, file: UploadFile = File(...), db: 
 @app.post("/backups/create")
 def create_backup(request: Request, db: Session = Depends(get_db)):
     require_permission(request, "manage_backups")
-    filename = f"holyfake_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite3"
+    filename = f"holyfake_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     target = BACKUP_DIR / filename
-    db.commit()
-    shutil.copy2(DB_PATH, target)
-    add_history(db, None, "Резервная копия", f"Создана копия {filename}", request.state.current_user.username)
+    db.flush()
+    write_json_backup(db, target)
+    add_history(db, None, "Резервная копия", f"Создана JSON-копия {filename}", request.state.current_user.username)
     db.commit()
     return redirect_to("/backups")
 
@@ -2273,37 +2449,46 @@ def download_backup(filename: str, request: Request):
     require_permission(request, "view_backups")
     safe_name = Path(filename).name
     path = BACKUP_DIR / safe_name
-    if not path.exists() or path.suffix != ".sqlite3":
+    if not path.exists() or path.suffix.lower() not in {".json", ".sqlite3"}:
         raise HTTPException(404, "Файл не найден")
     return FileResponse(path, filename=safe_name, media_type="application/octet-stream")
 
 
 @app.post("/backups/restore")
-async def restore_backup(request: Request, file: UploadFile = File(...)):
-    require_permission(request, "manage_backups")
+async def restore_backup(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    user = require_permission(request, "manage_backups")
     content = await file.read()
     if not content:
         return redirect_to("/backups?restore_error=empty")
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".sqlite3") as tmp:
+
+    suffix = Path(file.filename or "backup.json").suffix.lower()
+    tmp_suffix = suffix if suffix in {".json", ".sqlite3"} else ".backup"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=tmp_suffix) as tmp:
         tmp.write(content)
         tmp_path = Path(tmp.name)
+
     try:
-        check = sqlite3.connect(tmp_path)
-        try:
-            result = check.execute("PRAGMA integrity_check").fetchone()[0]
-        finally:
-            check.close()
-        if result != "ok":
-            return redirect_to("/backups?restore_error=bad_file")
-        emergency_name = f"before_restore_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite3"
-        emergency_path = BACKUP_DIR / emergency_name
-        if DB_PATH.exists():
-            shutil.copy2(DB_PATH, emergency_path)
-        engine.dispose()
-        shutil.copy2(tmp_path, DB_PATH)
+        # Перед восстановлением всегда создаем аварийную JSON-копию текущей базы.
+        emergency_name = f"before_restore_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        write_json_backup(db, BACKUP_DIR / emergency_name)
+
+        if suffix == ".sqlite3":
+            tables = read_sqlite_backup(tmp_path)
+        else:
+            tables = read_json_backup(tmp_path)
+
+        restore_tables_from_backup(db, tables)
+        # Если в загруженной копии не было owner, сайт не должен остаться без главного доступа.
+        owner = db.query(User).filter(func.lower(User.username) == "owner").first()
+        if not owner:
+            db.add(User(username="owner", email="owner@holyfake.local", password_hash=hash_password("HolyFake#2026!"), role="owner", status="active"))
+        db.commit()
+        return redirect_to("/backups?restored=1")
+    except Exception as exc:
+        db.rollback()
+        return redirect_to(f"/backups?restore_error={urllib.parse.quote(str(exc)[:160])}")
     finally:
         tmp_path.unlink(missing_ok=True)
-    return redirect_to("/backups?restored=1")
 
 
 @app.get("/health")

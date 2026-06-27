@@ -95,6 +95,7 @@ qsa('[data-edit-employee]').forEach(btn => {
       const field = qs(`[name="${key}"]`, form);
       if (field) field.value = value || '';
     });
+    qsa('.employee-position-select', form).forEach(select => { if (typeof applyPositionSelectColor === 'function') applyPositionSelectColor(select); });
     openModal('employeeEditModal');
     if (typeof runChskpCheck === 'function') runChskpCheck(form);
   });
@@ -208,6 +209,7 @@ qs('#chskpEmployeeSelect')?.addEventListener('change', async (event) => {
     const field = qs(`[name="${name}"]`, form);
     if (field) field.value = data[name] || '';
   });
+  qsa('.employee-position-select', form).forEach(select => { if (typeof applyPositionSelectColor === 'function') applyPositionSelectColor(select); });
 });
 
 // Custom confirm modal for important actions
@@ -282,7 +284,7 @@ function updateEmployeeManualDefault(form) {
   const manual = qs('[name="manual_access"]', form);
   if (!manual) return;
   if (manual.dataset.touched === '1') return;
-  manual.value = position === 'Стажер' ? '0' : '1';
+  manual.value = (position === 'Стажер' || position === '-' || position === '') ? '0' : '1';
 }
 qsa('.employee-form').forEach(form => {
   const position = qs('[name="position"]', form);
@@ -353,3 +355,27 @@ function toggleBySelect(selectId, wrapId, showValue) {
 }
 toggleBySelect('#punishmentMode', '#punishmentTextWrap', 'Есть');
 toggleBySelect('#cheatsMode', '#cheatsTextWrap', 'Есть');
+
+// Цвет выбранной должности в выпадающих списках
+function positionClass(value) {
+  const map = {
+    'Админ': 'pos-admin',
+    'Ст.сотрудник': 'pos-senior',
+    'Спектатор': 'pos-spectator',
+    'Вед.сотрудник': 'pos-lead',
+    'Сотрудник': 'pos-staff',
+    'Мл.сотрудник': 'pos-junior',
+    'Стажер': 'pos-trainee',
+    '-': 'pos-empty',
+    '': 'pos-empty'
+  };
+  return map[value || ''] || 'pos-empty';
+}
+function applyPositionSelectColor(select) {
+  ['pos-admin','pos-senior','pos-spectator','pos-lead','pos-staff','pos-junior','pos-trainee','pos-empty'].forEach(cls => select.classList.remove(cls));
+  select.classList.add(positionClass(select.value));
+}
+qsa('.employee-position-select').forEach(select => {
+  applyPositionSelectColor(select);
+  select.addEventListener('change', () => applyPositionSelectColor(select));
+});

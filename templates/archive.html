@@ -32,7 +32,7 @@
       {% for e in employees %}
         <tr>
           <td><b>{{ e.nick }}</b></td>
-          <td>{{ e.position }}</td>
+          <td><span class="pill position-pill {{ position_css_class(e.position) }}">{{ e.position or '-' }}</span></td>
           <td>{{ e.discord }}</td>
           <td>{{ e.telegram }}</td>
           <td>{{ e.removal_reason }}</td>
@@ -53,7 +53,7 @@
               </div>
             </details>
           </td>
-          <td>{% if can_perm('manage_employees') %}<form method="post" action="/archive/{{ e.id }}/restore" class="inline-form" data-confirm="Вернуть сотрудника из архива?"><button class="small-button" type="submit">Вернуть</button></form>{% else %}-{% endif %}</td>
+          <td>{% if can_perm('manage_employees') %}<div class="actions-wrap"><form method="post" action="/archive/{{ e.id }}/restore" class="inline-form" data-confirm="Вернуть сотрудника из архива?"><button class="small-button" type="submit">Вернуть</button></form><form method="post" action="/employees/{{ e.id }}/delete" class="inline-form" data-confirm="Удалить сотрудника {{ e.nick }} навсегда? Это НЕ попадет в журнал действий."><button class="small-button danger" type="submit">Удалить</button></form></div>{% else %}-{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>

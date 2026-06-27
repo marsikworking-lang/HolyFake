@@ -31,7 +31,7 @@
         {% for b in entries %}
         <tr class="{{ 'due-done' if blacklist_status(b) == 'Срок истек' else 'blacklist-row' }}">
           <td><b>{{ b.nick or '-' }}</b></td>
-          <td>{{ b.position or '-' }}</td>
+          <td><span class="pill position-pill {{ position_css_class(b.position) }}">{{ b.position or '-' }}</span></td>
           <td>{{ b.discord or '-' }}</td>
           <td>{{ b.discord_id or '-' }}</td>
           <td>{{ b.telegram or '-' }}</td>
@@ -66,14 +66,19 @@
         </select>
       </label>
       <label>Ник<input class="input" name="nick" placeholder="NickName"></label>
-      <label>Должность<input class="input" name="position" placeholder="Бывшая должность"></label>
+      <label>Должность
+        <select class="input employee-position-select" name="position">
+          <option value="">-</option>
+          {% for position in options.positions %}<option value="{{ position }}" class="{{ position_css_class(position) }}">{{ position }}</option>{% endfor %}
+        </select>
+      </label>
       <label>Дискорд<input class="input" name="discord" placeholder="discord_name"></label>
       <label>Discord ID<input class="input" name="discord_id" placeholder="123456789"></label>
       <label>Telegram<input class="input" name="telegram" placeholder="@telegram"></label>
       <label>Telegram ID<input class="input" name="telegram_id" placeholder="123456789"></label>
       <label>Почта<input class="input" type="email" name="email" placeholder="mail@example.com"></label>
       <label>Кто внес
-        <select class="input" name="added_by" required>{% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}</select>
+        <select class="input" name="added_by" required><option value="">-</option>{% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}</select>
       </label>
       <label>Дата внесения<input class="input" type="date" name="added_date" value="{{ today().isoformat() }}"></label>
       <label>Срок
