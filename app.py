@@ -23,7 +23,7 @@ from openpyxl import Workbook, load_workbook
 from sqlalchemy import extract, func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from database import Base, DB_PATH, SessionLocal, engine, get_db
+from database import Base, DB_PATH, IS_SQLITE, SessionLocal, engine, get_db
 from models import (
     AppSetting,
     ActionHistory,
@@ -810,6 +810,9 @@ def seed_data(db: Session) -> None:
 
 def ensure_schema() -> None:
     """Мини-миграции для локальной SQLite: добавляет новые колонки в старые базы."""
+    if not IS_SQLITE:
+        return
+
     with engine.begin() as conn:
         user_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()}
         if user_cols:
