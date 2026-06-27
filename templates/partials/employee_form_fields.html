@@ -1,0 +1,34 @@
+<label>Ник<input class="input" name="nick" required placeholder="NickName"></label>
+<label>Должность
+  <select class="input employee-position-select" name="position" required>
+    {% for position in options.positions %}<option value="{{ position }}">{{ position }}</option>{% endfor %}
+  </select>
+</label>
+<label>Дискорд<input class="input" name="discord" placeholder="discord_name"></label>
+<label>Discord ID<input class="input" name="discord_id" placeholder="123456789"></label>
+<label>Telegram<input class="input" name="telegram" placeholder="@telegram"></label>
+<label>Telegram ID<input class="input" name="telegram_id" placeholder="123456789"></label>
+<label>Почта<input class="input" type="email" name="email" placeholder="mail@example.com"></label>
+<label>2FA / привязка аккаунта
+  <select class="input" name="two_fa_enabled">
+    <option value="1">✅ Есть</option>
+    <option value="0" selected>❌ Нет</option>
+  </select>
+</label>
+<label>Доступ к мануалу
+  <select class="input employee-manual-select" name="manual_access">
+    <option value="1">✅ Есть</option>
+    <option value="0">❌ Нет</option>
+  </select>
+</label>
+<label>Кто принял
+  <select class="input" name="accepted_by">
+    {% for user in options.accepted_by %}<option value="{{ user }}">{{ user }}</option>{% endfor %}
+  </select>
+</label>
+<label>Дата принятия<input class="input" type="date" name="accepted_date" value="{{ today().isoformat() }}"></label>
+<label>Статус
+  <select class="input" name="status">
+    {% for status in options.statuses %}<option value="{{ status }}">{{ status }}</option>{% endfor %}
+  </select>
+</label>

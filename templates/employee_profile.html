@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% set header = 'Профиль сотрудника' %}
+{% block content %}
+<section class="profile-grid">
+  <article class="panel profile-card">
+    <div class="profile-head">
+      <div class="big-avatar">{{ employee.nick[0]|upper }}</div>
+      <div>
+        <h2>{{ employee.nick }}</h2>
+        <p>{{ employee.position }} · <span class="badge {{ badge_class(employee.status) }}">{{ employee.status }}</span></p>
+      </div>
+    </div>
+    {% if matches %}
+    <div class="danger-notice big">Найдено совпадение с черными списками: {% for m in matches %}{{ m.entry.list_type }} #{{ m.entry.id }} — {{ m.fields|join(', ') }}{% if not loop.last %}; {% endif %}{% endfor %}</div>
+    {% endif %}
+    <div class="info-grid">
+      <div><span>Discord</span><b>{{ employee.discord or '-' }}</b></div>
+      <div><span>Discord ID</span><b>{{ employee.discord_id or '-' }}</b></div>
+      <div><span>Telegram</span><b>{{ employee.telegram or '-' }}</b></div>
+      <div><span>Telegram ID</span><b>{{ employee.telegram_id or '-' }}</b></div>
+      <div><span>Почта</span><b>{{ employee.email or '-' }}</b></div>
+      <div><span>2FA</span><b class="check-icon {{ 'ok' if employee.two_fa_enabled else 'bad' }}">{{ yesno(employee.two_fa_enabled) }}</b></div>
+      <div><span>Доступ к мануалу</span><b class="check-icon {{ 'ok' if employee.manual_access else 'bad' }}">{{ yesno(employee.manual_access) }}{% if manual_due(employee) %} · нужно выдать{% endif %}</b></div>
+      <div><span>Кто принял</span><b>{{ employee.accepted_by or '-' }}</b></div>
+      <div><span>Дата принятия</span><b>{{ employee.accepted_date.strftime('%d.%m.%Y') if employee.accepted_date else '-' }}</b></div>
+      <div><span>Активные наказания</span><b>{{ counts.warnings }} пред. / {{ counts.reprimands }} выг.</b></div>
+    </div>
+    <div class="hero-actions">
+      {% if can_perm('manage_chskp') %}<button class="button danger" data-open-modal="profileChskpModal">Внести в ЧСКП</button>{% endif %}
+      {% if can_perm('manage_chsp') %}<button class="button danger" data-open-modal="profileChspModal">Внести в ЧСП</button>{% endif %}
+      <a class="button ghost" href="/employees">Назад к таблице</a>
+    </div>
+  </article>
+
+  <article class="panel">
+    <h2>Журнал действий</h2>
+    <div class="event-list compact-events">
+      {% for h in histories %}
+      <div class="event-item">
+        <b>{{ h.created_at.strftime('%d.%m.%Y %H:%M') }} — {{ h.action_type }}</b>
+        <span>{{ h.details }}</span>
+        <small>Кто: {{ h.actor }}</small>
+      </div>
+      {% else %}<div class="empty-state">Истории пока нет.</div>{% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="cards-grid mini-cards">
+  <article class="stat-card"><div class="stat-title">Предупреждения</div><div class="stat-value">{{ counts.warnings }}</div></article>
+  <article class="stat-card"><div class="stat-title">Выговоры</div><div class="stat-value">{{ counts.reprimands }}</div></article>
+  <article class="stat-card"><div class="stat-title">Повышений</div><div class="stat-value">{{ employee.promotions|length }}</div></article>
+  <article class="stat-card"><div class="stat-title">Отпусков</div><div class="stat-value">{{ employee.vacations|length }}</div></article>
+</section>
+
+<section class="panel">
+  <h2>Наказания</h2>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Тип</th><th>Причина</th><th>Дата выдачи</th><th>Кто выдал</th><th>Дата снятия</th><th>Статус</th></tr></thead><tbody>
+    {% for p in employee.punishments %}<tr class="{{ due_class(p.remove_date, p.status) }}"><td>{{ p.type }}</td><td>{{ p.reason }}</td><td>{{ p.issued_date.strftime('%d.%m.%Y') }}</td><td>{{ p.issued_by }}</td><td>{{ p.remove_date.strftime('%d.%m.%Y') }}</td><td><span class="badge {{ badge_class(p.status) }}">{{ p.status }}</span></td></tr>{% else %}<tr><td colspan="6">Нет наказаний</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+<section class="panel">
+  <h2>Отпуска и повышения</h2>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Тип</th><th>Описание</th><th>Дата</th><th>Кто</th><th>Статус</th></tr></thead><tbody>
+    {% for v in employee.vacations %}<tr><td>Отпуск</td><td>{{ v.reason }}</td><td>{{ v.start_date.strftime('%d.%m.%Y') }}–{{ v.end_date.strftime('%d.%m.%Y') }}</td><td>{{ v.issued_by }}</td><td>{{ v.status }}</td></tr>{% endfor %}
+    {% for pr in employee.promotions %}<tr><td>Повышение</td><td>{{ pr.old_position }} → {{ pr.new_position }}. {{ pr.reason }}</td><td>{{ pr.promotion_date.strftime('%d.%m.%Y') }}</td><td>{{ pr.promoted_by }}</td><td>-</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+<div class="modal" id="profileChskpModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Внести {{ employee.nick }} в ЧСКП</h2>
+    <form method="post" action="/employees/{{ employee.id }}/chskp" class="form-grid one" data-confirm="Вы точно хотите внести сотрудника в ЧСКП?">
+      <label>Кто внес
+        <select class="input" name="added_by" required>{% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}</select>
+      </label>
+      <label>Дата внесения<input class="input" type="date" name="added_date" value="{{ today().isoformat() }}"></label>
+      <label>Срок
+        <select class="input" name="term_type" id="profileChskpTermType">
+          <option value="Бессрочно">Бессрочно</option>
+          <option value="До даты">На определенное время</option>
+        </select>
+      </label>
+      <label id="profileChskpExpiresWrap" class="hidden">Дата окончания<input class="input" type="date" name="expires_at"></label>
+      <label>Причина<textarea name="reason" required placeholder="Почему заносим в ЧСКП"></textarea></label>
+      <label>Комментарий<textarea name="comment" placeholder="Дополнительно"></textarea></label>
+      <button class="button danger full" type="submit">Внести в ЧСКП</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="profileChspModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Внести {{ employee.nick }} в ЧСП</h2>
+    <form method="post" action="/employees/{{ employee.id }}/chsp" class="form-grid one" data-confirm="Вы точно хотите внести сотрудника в ЧСП?">
+      <label>Кто внес
+        <select class="input" name="added_by" required>{% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}</select>
+      </label>
+      <label>Дата внесения<input class="input" type="date" name="added_date" value="{{ today().isoformat() }}"></label>
+      <label>Срок
+        <select class="input blacklist-term-type" name="term_type" data-expires-wrap="profileChspExpiresWrap">
+          <option value="Бессрочно">Бессрочно</option>
+          <option value="До даты">На определенное время</option>
+        </select>
+      </label>
+      <label id="profileChspExpiresWrap" class="hidden">Дата окончания<input class="input" type="date" name="expires_at"></label>
+      <label>Причина<textarea name="reason" required placeholder="Почему заносим в ЧСП"></textarea></label>
+      <label>Комментарий<textarea name="comment" placeholder="Дополнительно"></textarea></label>
+      <button class="button danger full" type="submit">Внести в ЧСП</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

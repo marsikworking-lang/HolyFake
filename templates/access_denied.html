@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% set header = 'Нет доступа' %}
+{% block content %}
+<section class="panel access-panel">
+  <h2>Нет доступа</h2>
+  <p>{{ detail or 'У вашей роли нет прав для этого действия или раздела.' }}</p>
+  <div class="hero-actions">
+    <a class="button" href="/">На главную</a>
+    <a class="button ghost" href="/logout">Выйти</a>
+  </div>
+</section>
+{% endblock %}

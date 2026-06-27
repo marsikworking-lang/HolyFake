@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% set header = 'Отпуска' %}
+{% block content %}
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <h2>Выдача и учет отпусков</h2>
+      <p>Статус сотрудника автоматически меняется на “В отпуске”, а после окончания — на “Активен”.</p>
+    </div>
+    {% if can_perm('manage_vacations') %}<button class="button" data-open-modal="vacationModal">+ Выдать отпуск</button>{% endif %}
+  </div>
+
+  <div class="toolbar">
+    <input class="input table-search" data-table="vacationsTable" placeholder="Поиск по отпускам...">
+    <select class="input table-filter" data-table="vacationsTable" data-col="6">
+      <option value="">Все статусы</option>
+      <option value="Активно">Активно</option>
+      <option value="Завершен автоматически">Завершен автоматически</option>
+      <option value="Завершен вручную">Завершен вручную</option>
+    </select>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table" id="vacationsTable">
+      <thead>
+        <tr>
+          <th data-sort>Ник</th>
+          <th data-sort>Причина</th>
+          <th data-sort>Дата начала</th>
+          <th data-sort>Дата окончания</th>
+          <th data-sort>Осталось дней</th>
+          <th data-sort>Кто выдал</th>
+          <th data-sort>Статус</th>
+          <th>Комментарий</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for v in vacations %}
+        <tr class="{{ due_class(v.end_date, v.status) }}">
+          <td><b>{{ v.employee.nick }}</b></td>
+          <td>{{ v.reason }}</td>
+          <td>{{ v.start_date.strftime('%d.%m.%Y') }}</td>
+          <td>{{ v.end_date.strftime('%d.%m.%Y') }}</td>
+          <td>{{ remaining_days(v.end_date) }}</td>
+          <td>{{ v.issued_by }}</td>
+          <td><span class="badge {{ badge_class(v.status) }}">{{ v.status }}</span></td>
+          <td>{{ v.comment or '-' }}</td>
+          <td>{% if v.status == 'Активно' and can_perm('manage_vacations') %}<form method="post" action="/vacations/{{ v.id }}/finish" class="inline-form" data-confirm="Завершить отпуск вручную?"><button class="small-button" type="submit">Завершить</button></form>{% else %}-{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal" id="vacationModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Выдать отпуск</h2>
+    <form method="post" action="/vacations/add" class="form-grid one">
+      <label>Ник
+        <select class="input" name="employee_id" required>
+          {% for e in employees %}<option value="{{ e.id }}">{{ e.nick }} — {{ e.position }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Причина отпуска<textarea name="reason" required placeholder="Причина"></textarea></label>
+      <label>Дата начала<input class="input" type="date" name="start_date" id="vacationStart" value="{{ today().isoformat() }}" required></label>
+      <label>На сколько дней<input class="input" type="number" min="1" name="days" id="vacationDays" value="7" required></label>
+      <div class="notice" id="vacationEndPreview">Дата окончания будет рассчитана автоматически.</div>
+      <label>Кто выдал отпуск
+        <select class="input" name="issued_by" required>
+          {% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Комментарий<textarea name="comment" placeholder="Необязательно"></textarea></label>
+      <button class="button full" type="submit">Выдать отпуск</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

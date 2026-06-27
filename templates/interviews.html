@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% set header = 'Собеседование' %}
+{% block content %}
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <h2>Собеседования кандидатов</h2>
+      <p>Анкеты кандидатов, оценка общения, наказания, читы и итоговое решение.</p>
+    </div>
+    {% if can_perm('manage_interviews') %}<button class="button" data-open-modal="interviewAddModal">+ Добавить собеседование</button>{% endif %}
+  </div>
+  <div class="toolbar">
+    <input class="input table-search" data-table="interviewsTable" placeholder="Поиск...">
+    <select class="input table-filter" data-table="interviewsTable" data-col="7">
+      <option value="">Принят: все</option>
+      <option value="Да">Да</option>
+      <option value="Нет">Нет</option>
+    </select>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="interviewsTable">
+      <thead><tr><th data-sort>Дата</th><th data-sort>Имя</th><th data-sort>Ник</th><th data-sort>Возраст</th><th data-sort>Ум</th><th>Наказания/history</th><th>Ощущения</th><th data-sort>Принят</th><th data-sort>Крутость</th><th>Читы</th><th data-sort>Кто принял</th><th>Действия</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+          <td><b>{{ r.candidate_name }}</b></td>
+          <td>{{ r.server_nick }}</td>
+          <td>{{ r.age }}</td>
+          <td><span class="counter warn">{{ r.intelligence_score }}/10</span></td>
+          <td>{{ r.punishment_history }}</td>
+          <td>{{ r.communication_feelings or '-' }}</td>
+          <td><span class="badge {{ 'badge-green' if r.accepted == 'Да' else 'badge-red' }}">{{ r.accepted }}</span></td>
+          <td><span class="counter">{{ r.cool_score }}/5</span></td>
+          <td>{{ r.cheats_info }}</td>
+          <td>{{ r.accepted_by }}</td>
+          <td>{% if can_perm('manage_interviews') %}<form class="inline-form" method="post" action="/interviews/{{ r.id }}/delete" data-confirm="Удалить запись собеседования?"><button class="small-button danger" type="submit">Удалить</button></form>{% else %}-{% endif %}</td>
+        </tr>
+        {% else %}<tr><td colspan="12">Записей пока нет.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal" id="interviewAddModal">
+  <div class="modal-card large">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Добавить собеседование</h2>
+    <form method="post" action="/interviews/add" class="form-grid">
+      <label>Имя кандидата<input class="input" name="candidate_name" required></label>
+      <label>Никнейм на сервере<input class="input" name="server_nick" required></label>
+      <label>Возраст<input class="input" type="number" name="age" min="0" max="99" value="18"></label>
+      <label>Ум кандидата
+        <select class="input" name="intelligence_score">{% for i in range(0, 11) %}<option value="{{ i }}">{{ i }}</option>{% endfor %}</select>
+      </label>
+      <label>Последние наказания/history
+        <select class="input" name="punishment_mode" id="punishmentMode"><option value="Нет">Нет</option><option value="Есть">Есть, указать вручную</option></select>
+      </label>
+      <label id="punishmentTextWrap" class="hidden">Описание наказаний<textarea name="punishment_history" placeholder="Какие наказания были"></textarea></label>
+      <label class="wide">Мои ощущения от общения<textarea name="communication_feelings" placeholder="Как человек общался, адекватность, уверенность"></textarea></label>
+      <label>Принят ли
+        <select class="input" name="accepted"><option value="Да">Да</option><option value="Нет" selected>Нет</option></select>
+      </label>
+      <label>Балл «крутости»
+        <select class="input" name="cool_score">{% for i in range(0, 6) %}<option value="{{ i }}">{{ i }}</option>{% endfor %}</select>
+      </label>
+      <label>Наличие читов на ПК
+        <select class="input" name="cheats_mode" id="cheatsMode"><option value="Нет">Нет</option><option value="Есть">Есть, указать название</option></select>
+      </label>
+      <label id="cheatsTextWrap" class="hidden">Название чита<input class="input" name="cheats_info" placeholder="Например: ..."></label>
+      <label class="wide">Кто принял
+        <select class="input" name="accepted_by" required>
+          {% for name in interviewers %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+        </select>
+      </label>
+      <button class="button full" type="submit">Сохранить собеседование</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Вход — HolyFake Staff CP</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="login-page">
+  <main class="login-wrap">
+    <section class="login-card panel">
+      <div class="brand login-brand">
+        <div class="brand-logo">HF</div>
+        <div>
+          <strong>HolyFake</strong>
+          <span>Secure Admin</span>
+        </div>
+      </div>
+      <h1>Вход в панель</h1>
+      <p>Вход по логину или email. Закрытые страницы доступны только авторизованным сотрудникам администрации.</p>
+      {% if error %}<div class="danger-notice">{{ error }}</div>{% endif %}
+      <form method="post" action="/auth/login" class="form-grid one" data-login-form>
+        <label>Логин или email<input class="input" name="login" autocomplete="username" required placeholder="owner или owner@holyfake.local"></label>
+        <label>Пароль<input class="input" type="password" name="password" autocomplete="current-password" required placeholder="Введите пароль"></label>
+        <button class="button full" type="submit" data-loading-text="Проверяем...">Войти</button>
+      </form>
+      <div class="notice small-text">Первый вход после установки: <b>owner</b> / <b>HolyFake#2026!</b>. После входа создай своих пользователей в настройках и смени пароль.</div>
+    </section>
+  </main>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

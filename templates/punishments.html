@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% set header = 'Выдача наказаний' %}
+{% block content %}
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <h2>Выдать предупреждение или выговор</h2>
+      <p>Дата снятия считается автоматически по срокам из настроек.</p>
+    </div>
+    {% if can_perm('manage_punishments') %}<button class="button" data-open-modal="punishmentModal">+ Выдать наказание</button>{% endif %}
+  </div>
+
+  <div class="toolbar">
+    <input class="input table-search" data-table="punishmentsTable" placeholder="Поиск по наказаниям...">
+    <select class="input table-filter" data-table="punishmentsTable" data-col="1">
+      <option value="">Все типы</option>
+      <option value="Предупреждение">Предупреждение</option>
+      <option value="Выговор">Выговор</option>
+    </select>
+    <select class="input table-filter" data-table="punishmentsTable" data-col="7">
+      <option value="">Все статусы</option>
+      <option value="Активно">Активно</option>
+      <option value="Снято автоматически">Снято автоматически</option>
+      <option value="Снято вручную">Снято вручную</option>
+    </select>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table" id="punishmentsTable">
+      <thead>
+        <tr>
+          <th data-sort>Ник</th>
+          <th data-sort>Тип</th>
+          <th data-sort>Причина</th>
+          <th data-sort>Дата выдачи</th>
+          <th data-sort>Время</th>
+          <th data-sort>Кто выдал</th>
+          <th data-sort>Дата снятия</th>
+          <th data-sort>Статус</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in punishments %}
+        <tr class="{{ due_class(p.remove_date, p.status) }}">
+          <td><b>{{ p.employee.nick }}</b></td>
+          <td><span class="pill {{ 'danger-pill' if p.type == 'Выговор' else '' }}">{{ p.type }}</span></td>
+          <td>{{ p.reason }}</td>
+          <td>{{ p.issued_date.strftime('%d.%m.%Y') }}</td>
+          <td>{{ p.issued_time.strftime('%H:%M') if p.issued_time else '-' }}</td>
+          <td>{{ p.issued_by }}</td>
+          <td>{{ p.remove_date.strftime('%d.%m.%Y') }}</td>
+          <td><span class="badge {{ badge_class(p.status) }}">{{ p.status }}</span></td>
+          <td>
+            {% if p.status == 'Активно' and can_perm('manage_punishments') %}
+            <form method="post" action="/punishments/{{ p.id }}/manual-remove" class="inline-form" data-confirm="Снять наказание вручную?"><button class="small-button" type="submit">Снять</button></form>
+            {% else %}-{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal" id="punishmentModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Выдать наказание</h2>
+    <form method="post" action="/punishments/add" class="form-grid one">
+      <label>Ник сотрудника
+        <select class="input" name="employee_id" required>
+          {% for e in employees %}<option value="{{ e.id }}">{{ e.nick }} — {{ e.position }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Тип наказания
+        <select class="input" name="type" id="punishmentType" required>
+          <option value="Предупреждение">Предупреждение</option>
+          <option value="Выговор">Выговор</option>
+        </select>
+      </label>
+      <label>Причина выдачи<textarea name="reason" required placeholder="Опишите причину"></textarea></label>
+      <label>Дата выдачи<input class="input" type="date" name="issued_date" id="punishmentIssuedDate" value="{{ today().isoformat() }}"></label>
+      <label>Время выдачи<input class="input" type="time" name="issued_time"></label>
+      <label>Кто выдал
+        <select class="input" name="issued_by" required>
+          {% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="notice" id="autoRemovePreview">Дата снятия посчитается автоматически.</div>
+      <button class="button full" type="submit">Выдать наказание</button>
+    </form>
+  </div>
+</div>
+<script>window.PENALTY_DAYS = {warning: {{ warning_days }}, reprimand: {{ reprimand_days }}};</script>
+{% endblock %}

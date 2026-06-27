@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% set header = 'Снятые сотрудники / архив' %}
+{% block content %}
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <h2>Архив сотрудников</h2>
+      <p>В архиве сохраняются данные, наказания, отпуска, повышения и причина снятия.</p>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input class="input table-search" data-table="archiveTable" placeholder="Поиск по архиву...">
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table" id="archiveTable">
+      <thead>
+        <tr>
+          <th data-sort>Ник</th>
+          <th data-sort>Должность</th>
+          <th data-sort>Discord</th>
+          <th data-sort>Telegram</th>
+          <th data-sort>Причина снятия</th>
+          <th data-sort>Кто снял</th>
+          <th data-sort>Дата снятия</th>
+          <th>История</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for e in employees %}
+        <tr>
+          <td><b>{{ e.nick }}</b></td>
+          <td>{{ e.position }}</td>
+          <td>{{ e.discord }}</td>
+          <td>{{ e.telegram }}</td>
+          <td>{{ e.removal_reason }}</td>
+          <td>{{ e.removed_by }}</td>
+          <td>{{ e.removal_date.strftime('%d.%m.%Y') if e.removal_date else '-' }}</td>
+          <td>
+            <details>
+              <summary>Открыть</summary>
+              <div class="history-box">
+                <b>Наказания:</b>
+                {% for p in e.punishments %}<p>{{ p.type }} — {{ p.reason }} / {{ p.status }}</p>{% else %}<p>Нет</p>{% endfor %}
+                <b>Отпуска:</b>
+                {% for v in e.vacations %}<p>{{ v.reason }}: {{ v.start_date.strftime('%d.%m.%Y') }}–{{ v.end_date.strftime('%d.%m.%Y') }} / {{ v.status }}</p>{% else %}<p>Нет</p>{% endfor %}
+                <b>Повышения:</b>
+                {% for pr in e.promotions %}<p>{{ pr.old_position }} → {{ pr.new_position }} / {{ pr.promotion_date.strftime('%d.%m.%Y') }}</p>{% else %}<p>Нет</p>{% endfor %}
+                <b>Действия:</b>
+                {% for h in e.histories[-8:] %}<p>{{ h.created_at.strftime('%d.%m.%Y %H:%M') }} — {{ h.action_type }}: {{ h.details }}</p>{% else %}<p>Нет</p>{% endfor %}
+              </div>
+            </details>
+          </td>
+          <td>{% if can_perm('manage_employees') %}<form method="post" action="/archive/{{ e.id }}/restore" class="inline-form" data-confirm="Вернуть сотрудника из архива?"><button class="small-button" type="submit">Вернуть</button></form>{% else %}-{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

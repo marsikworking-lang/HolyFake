@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% set header = 'Сотрудники КП' %}
+{% block content %}
+{% if request.query_params.get('chskp_warning') %}
+<div class="danger-notice big">Внимание: у добавленного/измененного сотрудника найдено совпадение с ЧСКП или ЧСП. Откройте профиль или журнал действий, чтобы посмотреть детали.</div>
+{% endif %}
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <h2>Основная таблица сотрудников</h2>
+      <p>Поиск, сортировка, редактирование, наказания, 2FA, доступ к мануалу и статусы.</p>
+    </div>
+    {% if can_perm('manage_employees') %}<button class="button" data-open-modal="employeeAddModal">+ Добавить сотрудника</button>{% endif %}
+  </div>
+
+  <div class="toolbar">
+    <input class="input table-search" data-table="employeesTable" placeholder="Поиск по таблице...">
+    <select class="input table-filter" data-table="employeesTable" data-col="1">
+      <option value="">Все должности</option>
+      {% for position in options.positions %}<option value="{{ position }}">{{ position }}</option>{% endfor %}
+    </select>
+    <select class="input table-filter" data-table="employeesTable" data-col="13">
+      <option value="">Все статусы</option>
+      {% for status in options.statuses %}<option value="{{ status }}">{{ status }}</option>{% endfor %}
+    </select>
+    {% if can_perm('manage_import_export') %}<a class="button ghost" href="/export/excel">Экспорт Excel</a>{% endif %}
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table" id="employeesTable">
+      <thead>
+        <tr>
+          <th data-sort>Ник</th>
+          <th data-sort>Должность</th>
+          <th data-sort>Дискорд</th>
+          <th data-sort>Discord ID</th>
+          <th data-sort>Telegram</th>
+          <th data-sort>Telegram ID</th>
+          <th data-sort>Почта</th>
+          <th data-sort>Пред.</th>
+          <th data-sort>Выг.</th>
+          <th data-sort>2FA</th>
+          <th data-sort>Доступ к мануалу</th>
+          <th data-sort>Кто принял</th>
+          <th data-sort>Дата принятия</th>
+          <th data-sort>Статус</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in employees %}
+        {% set c = counts.get(e.id, {'warnings': 0, 'reprimands': 0}) %}
+        {% set m = chskp_matches.get(e.id, []) %}
+        <tr class="{{ 'blacklist-row' if m else '' }}">
+          <td><a class="table-link" href="/employees/{{ e.id }}/profile"><b>{{ e.nick }}</b></a>{% if m %}{% for item in m %} <span class="badge badge-red">{{ item.entry.list_type }}</span>{% endfor %}{% endif %}</td>
+          <td><span class="pill">{{ e.position }}</span></td>
+          <td>{{ e.discord }}</td>
+          <td>{{ e.discord_id }}</td>
+          <td>{{ e.telegram }}</td>
+          <td>{{ e.telegram_id }}</td>
+          <td>{{ e.email or '-' }}</td>
+          <td><span class="counter warn">{{ c.warnings }}</span></td>
+          <td><span class="counter danger">{{ c.reprimands }}</span></td>
+          <td class="center"><span class="check-icon {{ 'ok' if e.two_fa_enabled else 'bad' }}">{{ yesno(e.two_fa_enabled) }}</span></td>
+          <td class="center">
+            <span class="check-icon {{ 'ok' if e.manual_access else 'bad' }}">{{ yesno(e.manual_access) }}</span>
+            {% if manual_due(e) %}<span class="badge badge-yellow">Выдать</span>{% endif %}
+          </td>
+          <td>{{ e.accepted_by }}</td>
+          <td>{{ e.accepted_date.strftime('%d.%m.%Y') if e.accepted_date else '-' }}</td>
+          <td><span class="badge {{ badge_class(e.status) }}">{{ e.status }}</span></td>
+          <td class="actions-cell">
+            <a class="small-button ghost" href="/employees/{{ e.id }}/profile">Профиль</a>
+            {% if can_perm('manage_employees') %}<button class="small-button" data-edit-employee="{{ e.id }}">Изм.</button>
+            <button class="small-button danger" data-archive-employee="{{ e.id }}" data-nick="{{ e.nick }}">Снять</button>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal" id="employeeAddModal">
+  <div class="modal-card large">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Добавить сотрудника</h2>
+    <div class="danger-notice hidden" id="employeeChskpWarning"></div>
+    <form method="post" action="/employees/add" class="form-grid chskp-check-form employee-form">
+      {% include "partials/employee_form_fields.html" %}
+      <button class="button full" type="submit">Сохранить сотрудника</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="employeeEditModal">
+  <div class="modal-card large">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Редактировать сотрудника</h2>
+    <div class="danger-notice hidden" id="employeeEditChskpWarning"></div>
+    <form method="post" action="" id="employeeEditForm" class="form-grid chskp-check-form employee-form">
+      {% include "partials/employee_form_fields.html" %}
+      <button class="button full" type="submit">Обновить</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="employeeArchiveModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Снять сотрудника</h2>
+    <form method="post" action="" id="employeeArchiveForm" class="form-grid one" data-confirm="Вы точно хотите снять сотрудника и отправить его в архив?">
+      <div class="notice">Сотрудник уйдет в архив, вся история сохранится.</div>
+      <label>Причина снятия<textarea name="removal_reason" required placeholder="Например: нарушение регламента"></textarea></label>
+      <label>Кто снял
+        <select name="removed_by" class="input" required>
+          {% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Дата снятия<input class="input" type="date" name="removal_date" value="{{ today().isoformat() }}"></label>
+      <label>Комментарий<textarea name="removal_comment" placeholder="Дополнительно"></textarea></label>
+      <button class="button danger full" type="submit">Подтвердить снятие</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

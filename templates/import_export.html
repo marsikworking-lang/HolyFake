@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% set header = 'Импорт / экспорт' %}
+{% block content %}
+<section class="settings-grid">
+  <article class="panel">
+    <h2>Экспорт в Excel</h2>
+    <p>В файл попадут сотрудники, наказания, отпуска, повышения, аттестации, собеседования, ЧСКП/ЧСП и журнал действий.</p>
+    {% if can_perm('manage_import_export') %}<a class="button full" href="/export/excel">Скачать Excel</a>{% endif %}
+  </article>
+
+  <article class="panel">
+    <h2>Импорт файла таблицы</h2>
+    <p>Самый надежный вариант для таблиц как на скриншоте: Google Sheets → Файл → Скачать → Microsoft Excel (.xlsx), потом загрузить сюда.</p>
+    {% if params.get('error') %}<div class="danger-notice">{{ params.get('error') }}</div>{% endif %}
+    {% if params.get('imported') %}
+    <div class="notice">Импортировано: <b>{{ params.get('imported') }}</b>, пропущено: <b>{{ params.get('skipped') }}</b>, совпадений с ЧСКП/ЧСП: <b>{{ params.get('warnings') }}</b>, создано наказаний: <b>{{ params.get('punishments') }}</b>.</div>
+    {% endif %}
+    {% if can_perm('manage_import_export') %}<form method="post" action="/import/file" enctype="multipart/form-data" class="form-grid one">
+      <label>Файл .xlsx / .csv<input class="input" type="file" name="file" accept=".xlsx,.xlsm,.csv,.txt" required></label>
+      <button class="button full" type="submit">Импортировать файл</button>
+    </form>{% endif %}
+    <div class="notice small-text">Можно импортировать таблицы с заголовками: Ник, Должность, Дискорд, Дискорд ID, ТГ, ТГ ID, Почта, Дата принятия, Предупреждения, Выговоры, Привязка аккаунта/2FA, Доступ к мануалу, Кто принял.</div>
+  </article>
+
+  <article class="panel wide-panel">
+    <h2>Импорт по ссылке Google Sheets</h2>
+    <p>Работает только если таблица открыта по ссылке или опубликована. Ошибка 401 Unauthorized значит, что Google не отдает таблицу без входа в аккаунт.</p>
+    {% if can_perm('manage_import_export') %}<form method="post" action="/import/google-sheets" class="form-grid one">
+      <label>Ссылка Google Sheets<input class="input" name="google_url" placeholder="https://docs.google.com/spreadsheets/d/..." required></label>
+      <button class="button full" type="submit">Импортировать по ссылке</button>
+    </form>{% endif %}
+    <div class="notice small-text">Если ссылка закрытая, скачайте таблицу как .xlsx и загрузите через блок выше.</div>
+  </article>
+</section>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% set header = 'Повышения' %}
+{% block content %}
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <h2>История повышений</h2>
+      <p>После подтверждения должность меняется в основной таблице.</p>
+    </div>
+    {% if can_perm('manage_promotions') %}<button class="button" data-open-modal="promotionModal">+ Повысить сотрудника</button>{% endif %}
+  </div>
+
+  <div class="toolbar">
+    <input class="input table-search" data-table="promotionsTable" placeholder="Поиск по повышениям...">
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table" id="promotionsTable">
+      <thead>
+        <tr>
+          <th data-sort>Ник</th>
+          <th data-sort>Было</th>
+          <th data-sort>Стало</th>
+          <th data-sort>Причина</th>
+          <th data-sort>Кто повысил</th>
+          <th data-sort>Дата</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in promotions %}
+        <tr>
+          <td><b>{{ p.employee.nick }}</b></td>
+          <td>{{ p.old_position }}</td>
+          <td><span class="pill">{{ p.new_position }}</span></td>
+          <td>{{ p.reason }}</td>
+          <td>{{ p.promoted_by }}</td>
+          <td>{{ p.promotion_date.strftime('%d.%m.%Y') }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal" id="promotionModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Повысить сотрудника</h2>
+    <form method="post" action="/promotions/add" class="form-grid one">
+      <label>Ник сотрудника
+        <select class="input" name="employee_id" id="promotionEmployee" required>
+          {% for e in employees %}<option value="{{ e.id }}" data-position="{{ e.position }}">{{ e.nick }} — {{ e.position }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Текущая должность<input class="input" id="currentPosition" readonly></label>
+      <label>Новая должность
+        <select class="input" name="new_position" required>
+          {% for position in options.positions %}<option value="{{ position }}">{{ position }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Причина повышения<textarea name="reason" required placeholder="Почему повышаем"></textarea></label>
+      <label>Кто повысил
+        <select class="input" name="promoted_by" required>
+          {% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Дата повышения<input class="input" type="date" name="promotion_date" value="{{ today().isoformat() }}"></label>
+      <button class="button full" type="submit">Подтвердить повышение</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

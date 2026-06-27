@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% set header = 'Сроки снятия наказаний' %}
+{% block content %}
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <h2>Контроль сроков снятия</h2>
+      <p>Желтым подсвечены сроки меньше 2 дней, серым — уже снятые.</p>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input class="input table-search" data-table="removalsTable" placeholder="Поиск...">
+    <select class="input table-filter" data-table="removalsTable" data-col="7">
+      <option value="">Все статусы</option>
+      <option value="Активно">Активно</option>
+      <option value="Снято автоматически">Снято автоматически</option>
+      <option value="Снято вручную">Снято вручную</option>
+    </select>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table" id="removalsTable">
+      <thead>
+        <tr>
+          <th data-sort>Ник</th>
+          <th data-sort>Тип наказания</th>
+          <th data-sort>Причина</th>
+          <th data-sort>Дата выдачи</th>
+          <th data-sort>Кто выдал</th>
+          <th data-sort>Дата снятия</th>
+          <th data-sort>Осталось дней</th>
+          <th data-sort>Статус</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in punishments %}
+        <tr class="{{ due_class(p.remove_date, p.status) }}">
+          <td><b>{{ p.employee.nick }}</b></td>
+          <td>{{ p.type }}</td>
+          <td>{{ p.reason }}</td>
+          <td>{{ p.issued_date.strftime('%d.%m.%Y') }}</td>
+          <td>{{ p.issued_by }}</td>
+          <td>{{ p.remove_date.strftime('%d.%m.%Y') }}</td>
+          <td>{{ remaining_days(p.remove_date) }}</td>
+          <td><span class="badge {{ badge_class(p.status) }}">{{ p.status }}</span></td>
+          <td>{% if p.status == 'Активно' and can_perm('manage_punishments') %}<form method="post" action="/punishments/{{ p.id }}/manual-remove" class="inline-form" data-confirm="Снять наказание вручную?"><button class="small-button" type="submit">Снять вручную</button></form>{% else %}-{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

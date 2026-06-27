@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% set header = 'Главная панель' %}
+{% block content %}
+<section class="cards-grid dashboard-grid">
+  {% for name, value in cards.items() %}
+  <article class="stat-card">
+    <div class="stat-title">{{ name }}</div>
+    <div class="stat-value">{{ value }}</div>
+  </article>
+  {% endfor %}
+</section>
+
+<section class="panel two-col-panel">
+  <div>
+    <div class="section-head">
+      <div>
+        <h2>Ближайшие события</h2>
+        <p>Предупреждения, выговоры и отпуска на ближайшие 3 дня.</p>
+      </div>
+      {% if can_perm('view_notifications') %}<a class="button ghost" href="/notifications">Открыть все</a>{% endif %}
+    </div>
+
+    <div class="event-list">
+      {% for v in soon_vacations %}
+      <div class="event-item {{ due_class(v.end_date, v.status) }}">
+        <b>{{ v.employee.nick }}</b>
+        <span>Заканчивается отпуск — {{ v.end_date.strftime('%d.%m.%Y') }}</span>
+        <small>Осталось дней: {{ remaining_days(v.end_date) }}</small>
+      </div>
+      {% endfor %}
+      {% for p in soon_punishments %}
+      <div class="event-item {{ due_class(p.remove_date, p.status) }}">
+        <b>{{ p.employee.nick }}</b>
+        <span>Снимается {{ p.type|lower }} — {{ p.remove_date.strftime('%d.%m.%Y') }}</span>
+        <small>Осталось дней: {{ remaining_days(p.remove_date) }}</small>
+      </div>
+      {% endfor %}
+      {% for e in manual_reminders %}
+      <div class="event-item due-soon">
+        <b>{{ e.nick }}</b>
+        <span>Стажер уже 2+ дня в КП — нужно выдать доступ к мануалу.</span>
+        <small>Дата принятия: {{ e.accepted_date.strftime('%d.%m.%Y') if e.accepted_date else '-' }}</small>
+      </div>
+      {% endfor %}
+      {% if not soon_vacations and not soon_punishments and not manual_reminders %}
+      <div class="empty-state">На ближайшие дни событий нет.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="hero-card">
+    <span class="mini-label">HolyFake beta</span>
+    <h2>Полноценная КП-панель</h2>
+    <p>Сотрудники, наказания, отпуска, повышения, аттестации, собеседования, ЧСКП/ЧСП, архив, журнал действий, Excel-экспорт, импорт таблиц и резервные копии работают локально через SQLite.</p>
+    <div class="hero-actions">
+      {% if can_perm('view_employees') %}<a class="button" href="/employees">Открыть сотрудников</a>{% endif %}
+      {% if can_perm('view_attestation') %}<a class="button ghost" href="/attestation">Аттестация</a>{% endif %}
+      {% if can_perm('view_chskp') %}<a class="button ghost" href="/chskp">ЧСКП</a>{% endif %}
+      {% if can_perm('view_chsp') %}<a class="button ghost" href="/chsp">ЧСП</a>{% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

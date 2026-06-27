@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% set header = 'Настройки' %}
+{% block content %}
+<section class="settings-grid">
+  <article class="panel">
+    <div class="section-head compact">
+      <div>
+        <h2>Сроки снятия наказаний</h2>
+        <p>Новые наказания будут использовать эти значения.</p>
+      </div>
+    </div>
+    {% if can_perm('manage_settings') %}
+    <form method="post" action="/settings/penalty-days" class="form-grid one">
+      <label>Предупреждение, дней<input class="input" type="number" min="1" name="warning_days" value="{{ settings.warning_days }}"></label>
+      <label>Выговор, дней<input class="input" type="number" min="1" name="reprimand_days" value="{{ settings.reprimand_days }}"></label>
+      <button class="button full" type="submit">Сохранить сроки</button>
+    </form>
+    {% else %}
+    <div class="notice">У вас есть доступ к просмотру настроек, но нет права менять сроки.</div>
+    {% endif %}
+  </article>
+
+  <article class="panel wide-panel">
+    <div class="section-head compact">
+      <div>
+        <h2>Пользователи админ-панели</h2>
+        <p>Ты создаешь логин сотруднику сам, ставишь роль и точечно выбираешь, какие разделы он видит и что может делать. Забрать доступ можно одной кнопкой «Заблокировать».</p>
+      </div>
+    </div>
+    {% if not can_perm('manage_users') %}<div class="notice">Управление пользователями и правами доступно только главному администратору.</div>{% endif %}
+    {% if can_perm('manage_users') %}
+    {% if request.query_params.get('users') %}<div class="notice">Действие с пользователями выполнено.</div>{% endif %}
+    <form method="post" action="/auth/register" class="form-grid">
+      <label>Логин<input class="input" name="username" required placeholder="ник сотрудника в Minecraft"></label>
+      <label>Email<input class="input" type="email" name="email" required placeholder="можно служебный, например nick@holyfake.local"></label>
+      <label>Пароль<input class="input" type="password" name="password" required placeholder="Минимум 10 символов, буквы и цифры"></label>
+      <label>Роль
+        <select class="input" name="role">
+          {% for key, label in roles.items() %}
+          <option value="{{ key }}" {% if key == 'staff' %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="button full" type="submit">Создать пользователя</button>
+    </form>
+
+    <div class="table-wrap" style="margin-top:16px">
+      <table class="data-table">
+        <thead><tr><th>Логин</th><th>Email</th><th>Роль</th><th>Статус</th><th>Последний вход</th><th>Смена пароля</th><th>Доступ</th></tr></thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td><b>{{ u.username }}</b></td>
+            <td>{{ u.email }}</td>
+            <td>
+              {% if u.role == 'owner' %}
+                <span class="badge badge-orange">{{ roles.get(u.role, u.role) }}</span>
+              {% else %}
+              <form method="post" action="/auth/update-role/{{ u.id }}" class="inline-form user-role-form" data-confirm="Изменить роль пользователя {{ u.username }}? Ручные права сбросятся до новой роли.">
+                <select class="input mini-select" name="role" onchange="this.form.requestSubmit()">
+                  {% for key, label in roles.items() %}<option value="{{ key }}" {% if u.role == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+              </form>
+              {% endif %}
+            </td>
+            <td><span class="badge {{ 'badge-green' if u.status == 'active' else 'badge-red' }}">{{ 'Активен' if u.status == 'active' else 'Заблокирован' }}</span></td>
+            <td>{{ u.last_login_at.strftime('%d.%m.%Y %H:%M') if u.last_login_at else '-' }}</td>
+            <td>
+              {% if u.role != 'owner' or current_user.id == u.id %}
+              <form method="post" action="/auth/change-password" class="inline-form user-password-form" data-confirm="Сменить пароль этому пользователю?">
+                <input type="hidden" name="user_id" value="{{ u.id }}">
+                <input class="input mini-input" type="password" name="new_password" placeholder="Новый пароль" required>
+                <button class="small-button" type="submit">Сменить</button>
+              </form>
+              {% else %}-{% endif %}
+            </td>
+            <td>
+              {% if u.role == 'owner' %}
+                <span class="badge badge-orange">Все права</span>
+              {% elif u.status == 'active' %}
+              <form method="post" action="/auth/block/{{ u.id }}" class="inline-form" data-confirm="Заблокировать пользователя {{ u.username }}? Он сразу потеряет доступ к сайту.">
+                <button class="small-button danger" type="submit">Заблокировать</button>
+              </form>
+              {% else %}
+              <form method="post" action="/auth/unblock/{{ u.id }}" class="inline-form" data-confirm="Разблокировать пользователя {{ u.username }}?">
+                <button class="small-button" type="submit">Разблокировать</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}<tr><td colspan="7">Пользователей пока нет.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="permissions-list">
+      {% for u in users if u.role != 'owner' %}
+      <details class="permission-card">
+        <summary>
+          <b>{{ u.username }}</b>
+          <span>{{ roles.get(u.role, u.role) }}</span>
+          <em>{{ 'активен' if u.status == 'active' else 'заблокирован' }}</em>
+        </summary>
+        <form method="post" action="/auth/update-permissions/{{ u.id }}" data-confirm="Сохранить права пользователя {{ u.username }}?">
+          {% set selected = user_permissions_list(u) %}
+          {% for group_title, items in permission_groups %}
+          <div class="permission-group">
+            <h3>{{ group_title }}</h3>
+            <div class="permission-grid">
+              {% for key, label in items %}
+              <label class="permission-check">
+                <input type="checkbox" name="permissions" value="{{ key }}" {% if key in selected %}checked{% endif %}>
+                <span>{{ label }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+          <div class="hero-actions no-margin">
+            <button class="button" type="submit">Сохранить права</button>
+          </div>
+        </form>
+        <form method="post" action="/auth/reset-permissions/{{ u.id }}" data-confirm="Сбросить ручные права до стандартных прав роли?" class="permission-reset-form">
+          <button class="button ghost" type="submit">Сбросить до роли</button>
+        </form>
+      </details>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </article>
+
+  {% set labels = {
+    'positions': 'Должности',
+    'accepted_by': 'Кто принимает на должность',
+    'punishment_issuers': 'Кто может выдавать наказания',
+    'interviewers': 'Кто может проводить собеседования',
+    'statuses': 'Статусы сотрудников'
+  } %}
+
+  {% for category, rows in options_by_category.items() %}
+  <article class="panel option-panel">
+    <div class="section-head compact">
+      <div>
+        <h2>{{ labels[category] }}</h2>
+        <p>Эти значения используются в выпадающих списках.</p>
+      </div>
+    </div>
+
+    {% if can_perm('manage_settings') %}
+    <form method="post" action="/settings/options/add" class="option-add-form">
+      <input type="hidden" name="category" value="{{ category }}">
+      <input class="input" name="value" placeholder="Новое значение" required>
+      <button class="button" type="submit">Добавить</button>
+    </form>
+    {% endif %}
+
+    <div class="options-list">
+      {% for item in rows %}
+      <div class="option-item">
+        <span>{{ item.value }}</span>
+        {% if can_perm('manage_settings') %}<form method="post" action="/settings/options/{{ item.id }}/delete" data-confirm="Удалить значение из настроек?"><button class="small-button danger" type="submit">Удалить</button></form>{% endif %}
+      </div>
+      {% else %}
+      <div class="empty-state">Пока список пустой. Добавь свои значения, когда понадобится.</div>
+      {% endfor %}
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

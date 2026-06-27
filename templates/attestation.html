@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% set header = 'Аттестация' %}
+{% block content %}
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <h2>Текущие аттестации</h2>
+      <p>Иерархия: Стажер → Мл.сотрудник → Сотрудник → Вед.сотрудник → Ст.сотрудник или Спектатор.</p>
+    </div>
+    {% if can_perm('manage_attestation') %}<button class="button" data-open-modal="attestationAddModal">+ Назначить аттестацию</button>{% endif %}
+  </div>
+  <div class="toolbar">
+    <input class="input table-search" data-table="attestationTable" placeholder="Поиск...">
+    <select class="input table-filter" data-table="attestationTable" data-col="6">
+      <option value="">Все статусы</option>
+      <option value="Активно">Активно</option>
+      <option value="КД">КД</option>
+      <option value="Задержка">Задержка</option>
+      <option value="Пройдено">Пройдено</option>
+    </select>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table attestation-table" id="attestationTable">
+      <thead><tr><th data-sort>Ник</th><th data-sort>Текущая должность</th><th data-sort>Аттестация</th><th data-sort>Осталось попыток</th><th data-sort>Мануал</th><th data-sort>КД / задержка до</th><th data-sort>Статус</th><th>Действия</th></tr></thead>
+      <tbody>
+        {% for a in attestations %}
+        <tr class="{{ 'due-soon' if a.status in ['КД', 'Задержка'] else '' }}">
+          <td><a class="table-link" href="/employees/{{ a.employee.id }}/profile"><b>{{ a.employee.nick }}</b></a></td>
+          <td><span class="pill">{{ a.employee.position }}</span></td>
+          <td><span class="att-arrow"><b>{{ a.employee.position }}</b><span>→</span><b>{{ a.target_position }}</b></span></td>
+          <td><span class="counter {{ 'danger' if a.remaining_attempts <= 1 else 'warn' }}">{{ a.remaining_attempts }}</span></td>
+          <td><span class="badge badge-blue">{{ a.manual_level }}</span></td>
+          <td>{% if a.status == 'КД' and a.cooldown_until %}{{ a.cooldown_until.strftime('%d.%m.%Y') }}{% elif a.delay_until %}{{ a.delay_until.strftime('%d.%m.%Y') }}{% else %}-{% endif %}</td>
+          <td><span class="badge {{ badge_class(a.status) }}">{{ a.status }}</span></td>
+          <td class="actions-cell">
+            <div class="actions-wrap">
+              {% if can_perm('manage_attestation') and a.status == 'Активно' %}
+              <form method="post" action="/attestation/{{ a.id }}/pass" class="inline-form" data-confirm="Подтвердить успешную аттестацию и автоматически повысить сотрудника?">
+                <input type="hidden" name="conducted_by" value="{{ current_user.username }}">
+                <button class="small-button" type="submit">Сдал</button>
+              </form>
+              <form method="post" action="/attestation/{{ a.id }}/fail" class="inline-form" data-confirm="Засчитать отказ/неудачную попытку? Будет КД 2 дня, а после 3 провалов задержка 7 дней.">
+                <input type="hidden" name="actor" value="{{ current_user.username }}">
+                <button class="small-button danger" type="submit">Не сдал</button>
+              </form>
+              {% else %}<span class="actions-empty">—</span>{% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="8">Аттестаций пока нет.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <h2>История аттестаций</h2>
+      <p>Здесь хранятся успешно пройденные аттестации и кто повысил сотрудника.</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="attestationHistoryTable">
+      <thead><tr><th data-sort>Ник</th><th data-sort>Повышен до</th><th data-sort>Дата и время</th><th data-sort>Кто провел</th><th>Комментарий</th></tr></thead>
+      <tbody>
+        {% for h in history %}
+        <tr><td><b>{{ h.employee.nick }}</b></td><td><span class="pill">{{ h.promoted_to }}</span></td><td>{{ h.promoted_at.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ h.conducted_by }}</td><td>{{ h.comment or '-' }}</td></tr>
+        {% else %}<tr><td colspan="5">Успешных аттестаций пока нет.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal" id="attestationAddModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Назначить аттестацию</h2>
+    <div class="notice">Нельзя сдавать на должность ниже или равную текущей. Для Вед.сотрудника доступен выбор: Ст.сотрудник или Спектатор.</div>
+    <form method="post" action="/attestation/add" class="form-grid one" id="attestationAddForm">
+      <label>Сотрудник
+        <select class="input" name="employee_id" id="attestationEmployee" required>
+          {% for e in employees %}<option value="{{ e.id }}" data-position="{{ e.position }}">{{ e.nick }} — {{ e.position }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Должность, на которую проходит аттестацию
+        <select class="input" name="target_position" id="attestationTarget" required></select>
+      </label>
+      <label>Доступный уровень мануала
+        <select class="input" name="manual_level" required>
+          {% for level in manual_levels %}<option value="{{ level }}">{{ level }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Кто назначил<input class="input" name="created_by" value="{{ current_user.username }}"></label>
+      <button class="button full" type="submit" id="attestationSubmit">Назначить</button>
+    </form>
+  </div>
+</div>
+<script>window.ATTESTATION_TARGETS = {{ attestation_targets|tojson }};</script>
+{% endblock %}

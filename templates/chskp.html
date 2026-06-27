@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% set header = list_type or 'Черный список' %}
+{% block content %}
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <h2>{{ list_type }} — {{ full_text }}</h2>
+      <p>Здесь хранятся данные людей из списка. При добавлении нового сотрудника данные автоматически проверяются и по ЧСКП, и по ЧСП.</p>
+    </div>
+    <div class="hero-actions no-margin">
+      <a class="button ghost" href="/{{ other_page }}">Открыть {{ other_type }}</a>
+      {% if (list_type == 'ЧСКП' and can_perm('manage_chskp')) or (list_type == 'ЧСП' and can_perm('manage_chsp')) %}<button class="button danger" data-open-modal="chskpModal">+ Внести в {{ list_type }}</button>{% endif %}
+    </div>
+  </div>
+  <div class="toolbar">
+    <input class="input table-search" data-table="chskpTable" placeholder="Поиск по {{ list_type }}...">
+    <select class="input table-filter" data-table="chskpTable" data-col="11">
+      <option value="">Все статусы</option>
+      <option value="Активно">Активно</option>
+      <option value="Срок истек">Срок истек</option>
+    </select>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="chskpTable">
+      <thead>
+        <tr>
+          <th data-sort>Ник</th><th data-sort>Должность</th><th data-sort>Discord</th><th data-sort>Discord ID</th><th data-sort>Telegram</th><th data-sort>Telegram ID</th><th data-sort>Почта</th><th data-sort>Причина</th><th data-sort>Кто внес</th><th data-sort>Дата</th><th data-sort>Срок</th><th data-sort>Статус</th><th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in entries %}
+        <tr class="{{ 'due-done' if blacklist_status(b) == 'Срок истек' else 'blacklist-row' }}">
+          <td><b>{{ b.nick or '-' }}</b></td>
+          <td>{{ b.position or '-' }}</td>
+          <td>{{ b.discord or '-' }}</td>
+          <td>{{ b.discord_id or '-' }}</td>
+          <td>{{ b.telegram or '-' }}</td>
+          <td>{{ b.telegram_id or '-' }}</td>
+          <td>{{ b.email or '-' }}</td>
+          <td>{{ b.reason }}</td>
+          <td>{{ b.added_by }}</td>
+          <td>{{ b.added_date.strftime('%d.%m.%Y') }}</td>
+          <td>{% if b.term_type == 'Бессрочно' %}Бессрочно{% else %}До {{ b.expires_at.strftime('%d.%m.%Y') if b.expires_at else '-' }}{% endif %}</td>
+          <td><span class="badge {{ 'badge-red' if blacklist_status(b) == 'Активно' else 'badge-muted' }}">{{ blacklist_status(b) }}</span></td>
+          <td class="actions-cell">
+            <div class="actions-wrap">
+              {% if (list_type == 'ЧСКП' and can_perm('manage_chskp')) or (list_type == 'ЧСП' and can_perm('manage_chsp')) %}<form method="post" action="/{{ page }}/{{ b.id }}/delete" class="inline-form" data-confirm="Удалить запись из {{ list_type }}?"><button class="small-button danger" type="submit">Удалить</button></form>{% else %}<span class="actions-empty">—</span>{% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="13">Записей пока нет.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal" id="chskpModal">
+  <div class="modal-card large">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Внести в {{ list_type }}</h2>
+    <form method="post" action="/{{ page }}/add" class="form-grid" id="chskpForm" data-confirm="Внести человека в {{ list_type }}?">
+      <label class="wide">Заполнить по бывшему сотруднику
+        <select class="input" id="chskpEmployeeSelect">
+          <option value="">Заполнить вручную</option>
+          {% for e in employees %}<option value="{{ e.id }}">{{ e.nick }} — {{ e.position }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Ник<input class="input" name="nick" placeholder="NickName"></label>
+      <label>Должность<input class="input" name="position" placeholder="Бывшая должность"></label>
+      <label>Дискорд<input class="input" name="discord" placeholder="discord_name"></label>
+      <label>Discord ID<input class="input" name="discord_id" placeholder="123456789"></label>
+      <label>Telegram<input class="input" name="telegram" placeholder="@telegram"></label>
+      <label>Telegram ID<input class="input" name="telegram_id" placeholder="123456789"></label>
+      <label>Почта<input class="input" type="email" name="email" placeholder="mail@example.com"></label>
+      <label>Кто внес
+        <select class="input" name="added_by" required>{% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}</select>
+      </label>
+      <label>Дата внесения<input class="input" type="date" name="added_date" value="{{ today().isoformat() }}"></label>
+      <label>Срок
+        <select class="input" name="term_type" id="chskpTermType">
+          <option value="Бессрочно">Бессрочно</option>
+          <option value="До даты">На определенное время</option>
+        </select>
+      </label>
+      <label id="chskpExpiresWrap" class="hidden">Дата окончания<input class="input" type="date" name="expires_at"></label>
+      <label class="wide">Причина внесения<textarea name="reason" required placeholder="Почему человек внесен в {{ list_type }}"></textarea></label>
+      <label class="wide">Комментарий<textarea name="comment" placeholder="Дополнительно"></textarea></label>
+      <button class="button danger full" type="submit">Внести в {{ list_type }}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
