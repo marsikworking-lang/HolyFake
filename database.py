@@ -6,21 +6,26 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 BASE_DIR = Path(__file__).resolve().parent
 
-# На Render берем базу из переменной DATABASE_URL.
-# Локально, если DATABASE_URL нет, используем SQLite рядом с проектом.
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    f"sqlite:///{BASE_DIR / 'holyfake.sqlite3'}"
-)
+# Нужно для старых функций сайта, например локальных резервных копий.
+DB_PATH = Path(
+    os.getenv("HF_DB_PATH", str(BASE_DIR / "holyfake.sqlite3"))
+).resolve()
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-# Некоторые сервисы дают ссылку postgres://, SQLAlchemy хочет postgresql://
+# На Render берем PostgreSQL из DATABASE_URL.
+# Локально, если DATABASE_URL нет, используем SQLite.
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    DATABASE_URL = f"sqlite:///{DB_PATH}"
+
+# Некоторые сервисы дают postgres://, а SQLAlchemy нужен postgresql://
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 connect_args = {}
 
-# Эти настройки нужны только SQLite.
-# Для PostgreSQL их ставить нельзя.
+# Только для SQLite. Для PostgreSQL это нельзя использовать.
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
