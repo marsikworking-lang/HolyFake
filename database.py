@@ -5,19 +5,39 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 BASE_DIR = Path(__file__).resolve().parent
-# Для локального запуска база лежит рядом с проектом.
-# Для хостинга можно указать HF_DB_PATH=/data/holyfake.sqlite3, если есть постоянный диск/volume.
-DB_PATH = Path(os.getenv("HF_DB_PATH", str(BASE_DIR / "holyfake.sqlite3"))).resolve()
-DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-DATABASE_URL = f"sqlite:///{DB_PATH}"
+
+# На Render берем базу из переменной DATABASE_URL.
+# Локально, если DATABASE_URL нет, используем SQLite рядом с проектом.
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    f"sqlite:///{BASE_DIR / 'holyfake.sqlite3'}"
+)
+
+# Некоторые сервисы дают ссылку postgres://, SQLAlchemy хочет postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+connect_args = {}
+
+# Эти настройки нужны только SQLite.
+# Для PostgreSQL их ставить нельзя.
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args=connect_args,
+    pool_pre_ping=True,
     future=True,
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    future=True,
+)
+
 Base = declarative_base()
 
 
