@@ -7,7 +7,7 @@
       <div class="big-avatar">{{ employee.nick[0]|upper }}</div>
       <div>
         <h2>{{ employee.nick }}</h2>
-        <p><span class="pill position-pill {{ position_css_class(employee.position) }}">{{ employee.position or '-' }}</span> · <span class="badge {{ badge_class(employee.status) }}">{{ employee.status }}</span></p>
+        <p><span class="pill position-pill {{ position_css_class(employee.position) }}">{{ position_label(employee.position) }}</span> · <span class="badge {{ badge_class(employee.status) }}">{{ employee.status }}</span></p>
       </div>
     </div>
     {% if matches %}
@@ -19,16 +19,21 @@
       <div><span>Telegram</span><b>{{ employee.telegram or '-' }}</b></div>
       <div><span>Telegram ID</span><b>{{ employee.telegram_id or '-' }}</b></div>
       <div><span>Почта</span><b>{{ employee.email or '-' }}</b></div>
-      <div><span>2FA</span><b class="check-icon {{ 'ok' if employee.two_fa_enabled else 'bad' }}">{{ yesno(employee.two_fa_enabled) }}</b></div>
-      <div><span>Доступ к мануалу</span><b class="check-icon {{ 'ok' if employee.manual_access else 'bad' }}">{{ yesno(employee.manual_access) }}{% if manual_due(employee) %} · нужно выдать{% endif %}</b></div>
+      <div><span>2FA</span><b data-twofa-cell="{{ employee.id }}" class="check-icon {{ 'ok' if employee.two_fa_enabled else 'bad' }}">{{ yesno(employee.two_fa_enabled) }}</b></div>
+      <div><span>Доступ к мануалу</span><b data-manual-cell="{{ employee.id }}" class="check-icon {{ 'ok' if employee.manual_access else 'bad' }}">{{ yesno(employee.manual_access) }}{% if manual_due(employee) %} · нужно выдать{% endif %}</b></div>
       <div><span>Кто принял</span><b>{{ employee.accepted_by or '-' }}</b></div>
       <div><span>Дата принятия</span><b>{{ employee.accepted_date.strftime('%d.%m.%Y') if employee.accepted_date else '-' }}</b></div>
       <div><span>Активные наказания</span><b>{{ counts.warnings }} пред. / {{ counts.reprimands }} выг.</b></div>
     </div>
     <div class="hero-actions">
+      {% if can_perm('manage_employees') %}
+      <button class="button" type="button" data-edit-employee="{{ employee.id }}">Изм.</button>
+      <button class="button danger" type="button" data-archive-employee="{{ employee.id }}" data-nick="{{ employee.nick }}">Снять</button>
+      <form method="post" action="/employees/{{ employee.id }}/delete" class="inline-form" data-confirm="Удалить сотрудника {{ employee.nick }} навсегда? Это НЕ попадет в журнал действий."><button class="button danger" type="submit">Удалить</button></form>
+      {% if not employee.manual_access or not employee.two_fa_enabled %}<button class="button" type="button" data-give-manual="{{ employee.id }}">Выдать</button>{% endif %}
+      {% endif %}
       {% if can_perm('manage_chskp') %}<button class="button danger" data-open-modal="profileChskpModal">Внести в ЧСКП</button>{% endif %}
       {% if can_perm('manage_chsp') %}<button class="button danger" data-open-modal="profileChspModal">Внести в ЧСП</button>{% endif %}
-      {% if can_perm('manage_employees') %}<form method="post" action="/employees/{{ employee.id }}/delete" class="inline-form" data-confirm="Удалить сотрудника {{ employee.nick }} навсегда? Это НЕ попадет в журнал действий."><button class="button danger" type="submit">Удалить</button></form>{% endif %}
       <a class="button ghost" href="/employees">Назад к таблице</a>
     </div>
   </article>
@@ -111,6 +116,38 @@
       <label>Причина<textarea name="reason" required placeholder="Почему заносим в ЧСП"></textarea></label>
       <label>Комментарий<textarea name="comment" placeholder="Дополнительно"></textarea></label>
       <button class="button danger full" type="submit">Внести в ЧСП</button>
+    </form>
+  </div>
+</div>
+
+
+<div class="modal" id="employeeEditModal">
+  <div class="modal-card large">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Редактировать сотрудника</h2>
+    <div class="danger-notice hidden" id="employeeEditChskpWarning"></div>
+    <form method="post" action="" id="employeeEditForm" class="form-grid chskp-check-form employee-form">
+      {% include "partials/employee_form_fields.html" %}
+      <button class="button full" type="submit">Обновить</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="employeeArchiveModal">
+  <div class="modal-card">
+    <button class="modal-close" data-close-modal>×</button>
+    <h2>Снять сотрудника</h2>
+    <form method="post" action="" id="employeeArchiveForm" class="form-grid one" data-confirm="Вы точно хотите снять сотрудника и отправить его в архив?">
+      <div class="notice">Сотрудник уйдет в архив, вся история сохранится.</div>
+      <label>Причина снятия<textarea name="removal_reason" required placeholder="Например: нарушение регламента"></textarea></label>
+      <label>Кто снял
+        <select name="removed_by" class="input" required>
+          {% for issuer in options.punishment_issuers %}<option value="{{ issuer }}">{{ issuer }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Дата снятия<input class="input" type="date" name="removal_date" value="{{ today().isoformat() }}"></label>
+      <label>Комментарий<textarea name="removal_comment" placeholder="Дополнительно"></textarea></label>
+      <button class="button danger full" type="submit">Подтвердить снятие</button>
     </form>
   </div>
 </div>

@@ -15,14 +15,8 @@ qsa('[data-open-modal]').forEach(btn => {
 qsa('[data-close-modal]').forEach(btn => {
   btn.addEventListener('click', () => closeModal(btn.closest('.modal')));
 });
-qsa('.modal').forEach(modal => {
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) closeModal(modal);
-  });
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') qsa('.modal.show').forEach(closeModal);
-});
+// Модальные окна закрываются только по крестику с data-close-modal.
+// Клик вне окна и Esc специально отключены, чтобы не терять введенные данные.
 
 // Theme switcher
 const savedTheme = localStorage.getItem('hf-theme');
@@ -69,8 +63,10 @@ qsa('th[data-sort]').forEach(th => {
 
     const rows = qsa('tr', tbody);
     rows.sort((a, b) => {
-      const av = qsa('td', a)[index]?.innerText.trim() || '';
-      const bv = qsa('td', b)[index]?.innerText.trim() || '';
+      const cellA = qsa('td', a)[index];
+      const cellB = qsa('td', b)[index];
+      const av = cellA?.dataset.sortValue ?? cellA?.innerText.trim() ?? '';
+      const bv = cellB?.dataset.sortValue ?? cellB?.innerText.trim() ?? '';
       const an = Number(av.replace(',', '.'));
       const bn = Number(bv.replace(',', '.'));
       let result;
@@ -109,6 +105,49 @@ qsa('[data-archive-employee]').forEach(btn => {
     const notice = qs('.notice', form);
     if (notice) notice.textContent = `Сотрудник ${btn.dataset.nick} уйдет в архив, вся история сохранится.`;
     openModal('employeeArchiveModal');
+  });
+});
+
+
+// Выдать мануал / автоматически поставить галочку 2FA
+qsa('[data-give-manual]').forEach(btn => {
+  btn.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const id = btn.dataset.giveManual;
+    if (!id) return;
+
+    const oldText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Выдаю...';
+
+    try {
+      const response = await fetch(`/employees/${id}/manual/give`, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch' }
+      });
+      if (!response.ok) throw new Error('request failed');
+      const data = await response.json();
+      if (!data.success) throw new Error('not success');
+
+      qsa(`[data-twofa-cell="${id}"]`).forEach(cell => {
+        cell.innerHTML = '<span class="check-icon ok">✅</span>';
+        cell.classList.remove('bad');
+        cell.classList.add('ok');
+      });
+      qsa(`[data-manual-cell="${id}"]`).forEach(cell => {
+        cell.innerHTML = '<span class="check-icon ok">✅</span>';
+        cell.classList.remove('bad');
+        cell.classList.add('ok');
+      });
+      btn.textContent = 'Выдано ✅';
+      btn.classList.add('success');
+      setTimeout(() => btn.remove(), 600);
+    } catch (error) {
+      btn.disabled = false;
+      btn.textContent = oldText;
+      alert('Не удалось выдать. Проверь запуск сервера и права доступа.');
+    }
   });
 });
 
@@ -359,6 +398,8 @@ toggleBySelect('#cheatsMode', '#cheatsTextWrap', 'Есть');
 // Цвет выбранной должности в выпадающих списках
 function positionClass(value) {
   const map = {
+    'Владелец': 'pos-owner',
+    'Гл.Админ': 'pos-chief-admin',
     'Админ': 'pos-admin',
     'Ст.сотрудник': 'pos-senior',
     'Спектатор': 'pos-spectator',
@@ -372,7 +413,7 @@ function positionClass(value) {
   return map[value || ''] || 'pos-empty';
 }
 function applyPositionSelectColor(select) {
-  ['pos-admin','pos-senior','pos-spectator','pos-lead','pos-staff','pos-junior','pos-trainee','pos-empty'].forEach(cls => select.classList.remove(cls));
+  ['pos-owner','pos-chief-admin','pos-admin','pos-senior','pos-spectator','pos-lead','pos-staff','pos-junior','pos-trainee','pos-empty'].forEach(cls => select.classList.remove(cls));
   select.classList.add(positionClass(select.value));
 }
 qsa('.employee-position-select').forEach(select => {

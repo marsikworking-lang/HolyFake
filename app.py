@@ -116,7 +116,7 @@ LOGIN_ATTEMPTS: dict[str, dict] = {}
 
 DEFAULT_OPTIONS = {
     # Чистая база: тестовых ников нет. Должности и статусы остаются.
-    "positions": ["Админ", "Ст.сотрудник", "Спектатор", "Вед.сотрудник", "Сотрудник", "Мл.сотрудник", "Стажер"],
+    "positions": ["Владелец", "Гл.Админ", "Админ", "Ст.сотрудник", "Спектатор", "Вед.сотрудник", "Сотрудник", "Мл.сотрудник", "Стажер"],
     "accepted_by": [],
     "punishment_issuers": ["Система"],
     "interviewers": [],
@@ -137,22 +137,28 @@ POSITION_RANK = {
     "Мл.сотрудник": 2,
     "Сотрудник": 3,
     "Вед.сотрудник": 4,
-    "Ст.сотрудник": 5,
-    "Спектатор": 6,
+    "Спектатор": 5,
+    "Ст.сотрудник": 6,
     "Админ": 7,
+    "Гл.Админ": 8,
+    "Владелец": 9,
 }
 POSITION_ORDER = {
-    "Админ": 0,
-    "Ст.сотрудник": 1,
-    "Спектатор": 2,
-    "Вед.сотрудник": 3,
-    "Сотрудник": 4,
-    "Мл.сотрудник": 5,
-    "Стажер": 6,
+    "Владелец": 0,
+    "Гл.Админ": 1,
+    "Админ": 2,
+    "Ст.сотрудник": 3,
+    "Спектатор": 4,
+    "Вед.сотрудник": 5,
+    "Сотрудник": 6,
+    "Мл.сотрудник": 7,
+    "Стажер": 8,
     "-": 99,
     "": 99,
 }
 POSITION_CSS = {
+    "Владелец": "pos-owner",
+    "Гл.Админ": "pos-chief-admin",
     "Админ": "pos-admin",
     "Ст.сотрудник": "pos-senior",
     "Спектатор": "pos-spectator",
@@ -165,12 +171,25 @@ POSITION_CSS = {
 }
 
 
+def position_sort_number(position: str) -> int:
+    return POSITION_ORDER.get(position or "", 99)
+
+
 def position_sort_key(employee: Employee):
-    return (POSITION_ORDER.get(employee.position or "", 90), (employee.nick or "").lower())
+    return (position_sort_number(employee.position), (employee.nick or "").lower())
 
 
 def position_css_class(position: str) -> str:
     return POSITION_CSS.get(position or "", "pos-empty")
+
+
+def position_label(position: str) -> str:
+    labels = {
+        "Владелец": "👑 Владелец",
+        "Гл.Админ": "👑 Гл.Админ",
+        "Админ": "🛡 Админ",
+    }
+    return labels.get(position or "", position or "-")
 
 ATTESTATION_TARGETS = {
     "Стажер": ["Мл.сотрудник"],
@@ -180,6 +199,8 @@ ATTESTATION_TARGETS = {
     "Ст.сотрудник": [],
     "Спектатор": [],
     "Админ": [],
+    "Гл.Админ": [],
+    "Владелец": [],
 }
 IMPORTANT_CONFIRM_TEXT = "Вы уверены? Действие будет сохранено в журнале."
 BLACKLIST_LABELS = {"chskp": "ЧСКП", "chsp": "ЧСП"}
@@ -468,6 +489,8 @@ templates.env.globals["today"] = date.today
 templates.env.globals["chskp_status"] = chskp_status
 templates.env.globals["blacklist_status"] = blacklist_status
 templates.env.globals["position_css_class"] = position_css_class
+templates.env.globals["position_sort_number"] = position_sort_number
+templates.env.globals["position_label"] = position_label
 templates.env.globals["yesno"] = yesno
 templates.env.globals["manual_due"] = manual_due
 templates.env.globals["manual_levels"] = MANUAL_LEVELS
@@ -811,6 +834,12 @@ def seed_data(db: Session) -> None:
             db.query(Employee).filter(Employee.position == old).update({Employee.position: new})
         db.query(Employee).filter(Employee.status == "На проверке").update({Employee.status: "Активен"})
         set_setting(db, "defaults_v3_applied", "1")
+        db.commit()
+
+    # Обновляем только список должностей под новую иерархию, не трогая остальные настройки.
+    if get_setting(db, "positions_hierarchy_v4_applied", "0") != "1":
+        reset_options(db, "positions", DEFAULT_OPTIONS["positions"])
+        set_setting(db, "positions_hierarchy_v4_applied", "1")
         db.commit()
 
     # Если база совсем чистая.
@@ -1632,6 +1661,23 @@ def restore_employee(employee_id: int, request: Request, db: Session = Depends(g
     db.commit()
     return redirect_to("/archive")
 
+
+
+@app.post("/employees/{employee_id}/manual/give")
+def give_employee_manual(employee_id: int, request: Request, db: Session = Depends(get_db)):
+    user = require_permission(request, "manage_employees")
+    employee = db.get(Employee, employee_id)
+    if not employee:
+        raise HTTPException(404, "Сотрудник не найден")
+
+    employee.manual_access = True
+    employee.two_fa_enabled = True
+    employee.manual_access_granted_date = date.today()
+    employee.updated_at = datetime.now()
+    add_history(db, employee.id, "Выдача мануала", "Выдан доступ к мануалу и автоматически поставлена галочка 2FA", user.username)
+    db.commit()
+
+    return JSONResponse({"success": True, "manual_access": True, "two_fa_enabled": True})
 
 @app.get("/api/employees/{employee_id}")
 def employee_json(employee_id: int, request: Request, db: Session = Depends(get_db)):

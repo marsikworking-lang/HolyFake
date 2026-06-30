@@ -539,3 +539,22 @@ select option.pos-staff { background: #ffd2aa; color: #8b4400; }
 select option.pos-junior { background: #ffe88f; color: #6a4d00; }
 select option.pos-trainee { background: #bfe4ff; color: #0065a8; }
 .actions-cell .inline-form { display: inline-flex; }
+
+
+/* HolyFake 2.0 fixes */
+.employee-nick-link { font-weight: 950; }
+.employee-nick-link::after { content: "  ↗"; opacity: .55; font-size: 11px; }
+.manual-give-btn { margin-left: 8px; background: rgba(247,201,72,.22); color: var(--yellow); border-color: rgba(247,201,72,.35); }
+.manual-give-btn.success { background: rgba(40,209,124,.16); color: var(--green); border-color: rgba(40,209,124,.35); }
+.position-pill.pos-owner,
+.employee-position-select.pos-owner,
+select option.pos-owner { background: #8f0000; color: #fff !important; border-color: #ff4d43; box-shadow: 0 0 18px rgba(255,77,67,.22); }
+.position-pill.pos-chief-admin,
+.employee-position-select.pos-chief-admin,
+select option.pos-chief-admin { background: #a40000; color: #fff !important; border-color: #ff6b61; box-shadow: 0 0 14px rgba(255,77,67,.18); }
+.position-pill.pos-admin,
+.employee-position-select.pos-admin,
+select option.pos-admin { background: #bd0000; color: #fff !important; border-color: #8f0000; }
+.data-table td[data-manual-cell] { min-width: 145px; }
+.data-table th[data-sort] { cursor: pointer; user-select: none; }
+.data-table th[data-sort]:hover { color: var(--orange-2); }
